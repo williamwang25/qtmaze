@@ -1,5 +1,9 @@
 #include <QThread>
 #include "maze.h"
+#include "stack.h"
+#include "queue.h"
+
+
 //生成基础地图（单元格）
 void maze::base() {
     for (int i = 0; i < level * 2 + 1; i++) {
@@ -16,7 +20,7 @@ void maze::base() {
     }
 }
 //使点的周围设为待定（2）
-void maze:: _2(int i, int j) {
+void maze:: initCell(int i, int j) {
     if (map[i - 1][j] == 0) {
         map[i - 1][j] = 2;
     }
@@ -33,7 +37,7 @@ void maze:: _2(int i, int j) {
 //设定迷宫开始延伸的起点
 void maze:: start() {
     map[start_x][start_y] = 5;
-    _2(start_x, start_y);
+    initCell(start_x, start_y);
 }
 //循环停止判定（是否存在未判定的区域）
 bool maze:: judge() {
@@ -49,32 +53,32 @@ bool maze:: judge() {
     return flag;
 }
 //操作（如果相邻空单元（1）则打通（变为4），如果不相邻空单元则为墙壁（0））
-void maze:: op(int i, int j) {
+void maze:: updateCell(int i, int j) {
     if ((map[i - 1][j] == 3 || map[i - 1][j] == 5) && map[i + 1][j] == 1) {
         map[i][j] = 4;
         map[i + 1][j] = 3;
-        _2(i + 1, j);
+        initCell(i + 1, j);
         start_x = i + 1;
         start_y = j;
     } else if ((map[i][j - 1] == 3 || map[i][j - 1] == 5) &&
                map[i][j + 1] == 1) {
         map[i][j] = 4;
         map[i][j + 1] = 3;
-        _2(i, j + 1);
+        initCell(i, j + 1);
         start_x = i;
         start_y = j + 1;
     } else if ((map[i + 1][j] == 3 || map[i + 1][j] == 5) &&
                map[i - 1][j] == 1) {
         map[i][j] = 4;
         map[i - 1][j] = 3;
-        _2(i - 1, j);
+        initCell(i - 1, j);
         start_x = i - 1;
         start_y = j;
     } else if ((map[i][j + 1] == 3 || map[i][j + 1] == 5) &&
                map[i][j - 1] == 1) {
         map[i][j] = 4;
         map[i][j - 1] = 3;
-        _2(i, j - 1);
+        initCell(i, j - 1);
         start_x = i;
         start_y = j - 1;
     } else {
@@ -82,7 +86,7 @@ void maze:: op(int i, int j) {
     }
 }
 //随机选择一个待定墙壁判断并操作
-void maze:: random2() {
+void maze:: randomCell() {
     int t = 0;
     for (int i = 0; i < level * 2 + 1; i++) {
         for (int j = 0; j < level * 2 + 1; j++) {
@@ -98,7 +102,7 @@ void maze:: random2() {
             if (map[i][j] == 2) {
                 t++;
                 if (t == k) {
-                    op(i, j);
+                    updateCell(i, j);
                     goto loopout;
                 }
             }
@@ -143,7 +147,7 @@ void maze:: makemap() {
     int a = 0;
     while (judge()) {
         a++;
-        random2();
+        randomCell();
         // if (a % 30 == 0) {
         //     printarr(map, level);
         //     system("PAUSE");
@@ -176,48 +180,50 @@ void maze::brush(int k){
     map[x[k-1].i][x[k-1].j]=6;
 }
 
+//搜索方向数组
+const int dx[4] = {0, 1, 0, -1};  // 右、下、左、上
+const int dy[4] = {1, 0, -1, 0};
+
 //深度优先搜索
-bool maze::dfs(int k){
-    if(foundpath)return true;
-    //标记当前搜索位置9
-    map[x[k-1].i][x[k-1].j]=9;
-
-    emit mazeUpdated(); //更新迷宫显示
-
-    if(x[k-1].i==end_x&&x[k-1].j==end_y){ //找到终点
-        brush(k); //标记终点路线
+bool maze::dfs(int k) {
+    if(foundpath) return true;
+    
+    map[x[k-1].i][x[k-1].j] = 9;
+    emit mazeUpdated();
+    
+    if(x[k-1].i == end_x && x[k-1].j == end_y) {
+        brush(k);
         emit searchOver();
-        foundpath=true;
+        foundpath = true;
         return true;
-    }else{
-        for(int t=1;t<=4;t++){
-            if(able(k,t)){
-                Pos cur=x[k-1];
-                if(t==1)cur.j+=1;
-                if(t==2)cur.i+=1;
-                if(t==3)cur.j-=1;
-                if(t==4)cur.i-=1;
-                x[k]=cur;
-                p[cur.i][cur.j]=2;
-                dfs(k+1);
-                p[cur.i][cur.j]=0;
-
-                if(map[cur.i][cur.j] != 7 && map[cur.i][cur.j] != 6) {
-                    map[cur.i][cur.j] = 8; //已搜索
-                    emit mazeUpdated();
-                    //QThread::msleep(delay/2);
-                }
-                
-                p[cur.i][cur.j] = 0;
+    }
+    
+    // 使用方向数组简化代码
+    for(int dir = 0; dir < 4; dir++) {
+        int ni = x[k-1].i + dx[dir];
+        int nj = x[k-1].j + dy[dir];
+        
+        if(p[ni][nj] == 0) {  // 如果可以移动
+            x[k] = {ni, nj};
+            p[ni][nj] = 2;  // 标记为已访问
+            dfs(k+1);
+            
+            if(!foundpath && map[ni][nj] != 7 && map[ni][nj] != 6) {
+                map[ni][nj] = 8;
+                emit mazeUpdated();
             }
+            
+            p[ni][nj] = 0;
         }
     }
-    //标记为已搜索（非最终路径）
-    if(!!foundpath && map[x[k-1].i][x[k-1].j] == 9) {
+    
+    if(!foundpath && map[x[k-1].i][x[k-1].j] == 9) {
         map[x[k-1].i][x[k-1].j] = 8;
     }
+    
     return false;
 }
+
 void maze::solve(){
     foundpath=false;
     for(int i=0;i<level*2+1;i++){
@@ -235,7 +241,199 @@ void maze::solve(){
     emit searchOver();
 
     return;
+}
 
+// 栈DFS
+void maze::dfs_stack() {
+    foundpath = false;
+    // 初始化访问标记数组
+    for(int i = 0; i < level*2+1; i++) {
+        for(int j = 0; j < level*2+1; j++) {
+            if(map[i][j] == 0 || map[i][j] == -1) {
+                p[i][j] = 1; // 墙壁和边界不可访问
+            } else if(map[i][j] == 6) {
+                p[i][j] = 0; // 终点可访问
+                end_x = i;
+                end_y = j;
+            } else {
+                p[i][j] = 0; // 其他位置可访问
+            }
+        }
+    }
+    
+    Stack<Pos> stack;
+    
+    // 起点入栈
+    Pos start = {p_x, p_y};
+    stack.push(start);
+    p[p_x][p_y] = 2; // 标记为已访问
+    
+    // 方向数组
+    const int dx[4] = {0, 1, 0, -1};  // 右、下、左、上
+    const int dy[4] = {1, 0, -1, 0};
+    
+    while(!stack.isEmpty() && !foundpath) {
+        // 取出栈顶元素但不弹出
+        Pos current = stack.peek();
+        
+        // 标记当前位置为搜索中
+        map[current.i][current.j] = 9; // 当前搜索路径
+        emit mazeUpdated(); // 更新界面
+        
+        // 延时显示搜索过程
+        QThread::msleep(delay);
+        
+        // 检查是否到达终点
+        if(current.i == end_x && current.j == end_y) {
+            foundpath = true;
+            
+            // 回溯路径并标记为已访问路径
+            Stack<Pos> path;
+            while(!stack.isEmpty()) {
+                Pos pos = stack.pop();
+                path.push(pos);
+            }
+            
+            while(!path.isEmpty()) {
+                Pos pos = path.pop();
+                map[pos.i][pos.j] = 7; // 已经过路径
+            }
+            
+            map[end_x][end_y] = 6; // 确保终点标记不变
+            emit mazeUpdated();
+            emit searchOver();
+            return;
+        }
+        
+        // 尝试四个方向
+        bool found = false;
+        for(int dir = 0; dir < 4; dir++) {
+            int ni = current.i + dx[dir];
+            int nj = current.j + dy[dir];
+            
+            // 检查是否可以移动到下一个位置
+            if(p[ni][nj] == 0) {
+                // 可以移动
+                Pos next = {ni, nj};
+                stack.push(next);
+                p[ni][nj] = 2; // 标记为已访问
+                found = true;
+                break; // 找到一个可行方向就继续深入
+            }
+        }
+        
+        // 如果四个方向都不可行，回溯
+        if(!found) {
+            Pos backtrack = stack.pop();
+            if(map[backtrack.i][backtrack.j] == 9 && 
+               backtrack.i != end_x && backtrack.j != end_y) {
+                map[backtrack.i][backtrack.j] = 8; // 标记为已搜索路径
+                emit mazeUpdated();
+            }
+        }
+    }
+    
+    if(!foundpath) {
+        // 没有找到路径
+        emit searchOver();
+    }
+}
+
+// 链队BFS
+void maze::bfs_queue() {
+    foundpath = false;
+    
+    // 初始化访问标记数组
+    for(int i = 0; i < level*2+1; i++) {
+        for(int j = 0; j < level*2+1; j++) {
+            if(map[i][j] == 0 || map[i][j] == -1) {
+                p[i][j] = 1; // 墙壁和边界不可访问
+            } else if(map[i][j] == 6) {
+                p[i][j] = 0; // 终点可访问
+                end_x = i;
+                end_y = j;
+            } else {
+                p[i][j] = 0; // 其他位置可访问
+            }
+        }
+    }
+    
+    // 创建一个队列用于BFS
+    Queue<PosPath*> queue;
+    
+    // 起点入队
+    PosPath* start = new PosPath(p_x, p_y);
+    queue.enqueue(start);
+    p[p_x][p_y] = 2; // 标记为已访问
+    
+    // 方向数组
+    const int dx[4] = {0, 1, 0, -1};  // 右、下、左、上
+    const int dy[4] = {1, 0, -1, 0};
+    
+    PosPath* endPos = nullptr; // 用于存储找到的终点路径
+    
+    while(!queue.isEmpty() && !foundpath) {
+        // 取出队头元素
+        PosPath* current = queue.dequeue();
+        
+        // 标记当前位置为搜索中
+        map[current->i][current->j] = 9; // 当前搜索路径
+        emit mazeUpdated(); // 更新界面
+        
+        // 延时显示搜索过程
+        QThread::msleep(delay);
+        
+        // 检查是否到达终点
+        if(current->i == end_x && current->j == end_y) {
+            foundpath = true;
+            endPos = current; // 保存终点路径
+            break;
+        }
+        
+        // 尝试四个方向
+        for(int dir = 0; dir < 4; dir++) {
+            int ni = current->i + dx[dir];
+            int nj = current->j + dy[dir];
+            
+            // 检查是否可以移动到下一个位置
+            if(p[ni][nj] == 0) {
+                // 可以移动
+                PosPath* next = new PosPath(ni, nj, current);
+                queue.enqueue(next);
+                p[ni][nj] = 2; // 标记为已访问
+                
+                // 标记为已搜索路径
+                if(map[ni][nj] != 6) { // 不是终点
+                    map[ni][nj] = 8; // 已搜索路径
+                }
+                emit mazeUpdated();
+            }
+        }
+    }
+    
+    // 如果找到路径，回溯并标记
+    if(foundpath && endPos != nullptr) {
+        // 回溯路径并标记为已经过路径
+        PosPath* current = endPos;
+        while(current != nullptr) {
+            if(map[current->i][current->j] != 5 && map[current->i][current->j] != 6) {
+                map[current->i][current->j] = 7; // 已经过路径
+            }
+            PosPath* temp = current;
+            current = current->prev;
+            delete temp; // 释放内存
+        }
+        
+        map[end_x][end_y] = 6; // 确保终点标记不变
+        emit mazeUpdated();
+    } else {
+        // 清理队列中的所有元素
+        while(!queue.isEmpty()) {
+            delete queue.dequeue();
+        }
+    }
+    
+    emit searchOver();
 }
 
 void maze::setspeed(int ms){

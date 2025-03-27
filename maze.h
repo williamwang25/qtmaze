@@ -20,6 +20,20 @@
  * 8.已搜索路径
  * 9.当前搜索路径
  * **************************************************/
+ enum class CellType {
+    Border = -1,
+    Wall = 0,
+    EmptyCell = 1,
+    PendingWall = 2,
+    Path = 3,
+    OpenWall = 4,
+    Start = 5,
+    End = 6,
+    VisitedPath = 7,
+    SearchedPath = 8,
+    CurrentSearch = 9
+};
+
 struct Pos{
     int i;
     int j;
@@ -36,15 +50,17 @@ private:
     //生成基础地图（单元格）
     void base();
     //使点的周围设为待定（2）
-    void _2(int i, int j);
+    void initCell(int i, int j);
     //设定迷宫开始延伸的起点
     void start() ;
     //循环停止判定（是否存在未判定的区域）
     bool judge();
     //操作（如果相邻空单元（1）则打通（变为4），如果不相邻空单元则为墙壁（0））
-    void op(int i, int j);
+    void updateCell(int i, int j);
     //随机选择一个待定墙壁判断并操作
-    void random2();
+    void randomCell();
+
+
 public:
     //构造函数申请内存空间
     maze(int in_level);
@@ -68,6 +84,21 @@ public:
     int* operator[](int index);
     //搜索速度
     void setspeed(int ms);
+
+    // 链栈DFS
+    void dfs_stack();
+    // 链队BFS
+    struct PosPath {
+        int i;
+        int j;
+        PosPath* prev;  // 前驱结点指针
+        
+        PosPath(int x, int y, PosPath* p = nullptr) : i(x), j(y), prev(p) {}
+    };
+
+    void bfs_queue();
+
+
 signals:
     void mazeUpdated();
     void searchOver();

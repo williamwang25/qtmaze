@@ -40,6 +40,10 @@ private slots:
 
 
 
+    void on_dfs_btn_clicked();
+
+    void on_bfs_btn_clicked();
+
 private:
     Ui::mazeWidget* ui;         //ui对象
     maze* map;//迷宫对象

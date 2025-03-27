@@ -216,7 +216,7 @@ void mazeWidget::on_solve_btn_clicked() {
     connect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
 
     // 设置较低的可视化延迟，以便用户能看清过程
-    map->setspeed(150);  // 100毫秒延迟
+    map->setspeed(250);  // 100毫秒延迟
 
     map->solve();
     //repaint();
@@ -239,6 +239,8 @@ void mazeWidget::on_searchOver() {
         grade += pow(map->getlevel(), 2);
         ui->grade_value->setText(QString::number(grade));
         ui->solve_btn->setEnabled(true);
+        ui->dfs_btn->setEnabled(true);
+        ui->bfs_btn->setEnabled(true); //
     });
 }
 
@@ -247,3 +249,37 @@ void mazeWidget::maze_repaint(){
     repaint();
 }
 
+
+void mazeWidget::on_dfs_btn_clicked()
+{
+    ui->dfs_btn->setEnabled(false);
+    
+    // 确保只连接一次信号与槽
+    disconnect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
+    disconnect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
+    connect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
+    connect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
+    
+    // 设置可视化延迟
+    map->setspeed(20); // 设置较慢的速度以便观察
+    
+    // 使用链栈实现的DFS搜索
+    map->dfs_stack();
+}
+
+//BFS按钮点击的槽函数
+void mazeWidget::on_bfs_btn_clicked()
+{
+    ui->bfs_btn->setEnabled(false);
+    
+    // 确保只连接一次信号与槽
+    disconnect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
+    disconnect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
+    connect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
+    connect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
+    
+    map->setspeed(20);
+    
+    // 使用链队列实现的BFS搜索
+    map->bfs_queue();
+}
