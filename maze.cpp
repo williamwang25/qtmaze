@@ -2,6 +2,7 @@
 #include "maze.h"
 #include "stack.h"
 #include "queue.h"
+#include <qcoreapplication.h>
 
 
 //生成基础地图（单元格）
@@ -121,6 +122,9 @@ maze:: maze(int in_level) : level(in_level) {
         map[i] = new int[level * 2 + 1];
     }
     start_x = 1, start_y = 1; //起点设置为(1,1)
+
+    isPaused = false;
+    isExit = false;
 }
 maze::~maze() {
     for (int i = 0; i < level * 2 + 1; i++) {
@@ -128,6 +132,25 @@ maze::~maze() {
     }
     delete [] map;
 }
+
+void maze::setPause(bool state) {
+    isPaused = state;
+}
+
+void maze::setExit(bool state) {
+    isExit = state;
+}
+
+bool maze::getPauseState() const{
+    return isPaused;
+}
+
+void maze::resetState() {
+    isPaused = false;
+    isExit = false;
+}
+
+
 //获取地图
 int maze:: getlevel() {
     return maze::level;
@@ -225,6 +248,7 @@ bool maze::dfs(int k) {
 }
 
 void maze::solve(){
+    resetState();
     foundpath=false;
     for(int i=0;i<level*2+1;i++){
         for(int j=0;j<level*2+1;j++){
@@ -245,6 +269,7 @@ void maze::solve(){
 
 // 栈DFS
 void maze::dfs_stack() {
+    resetState();//重置状态
     foundpath = false;
     // 初始化访问标记数组
     for(int i = 0; i < level*2+1; i++) {
@@ -272,7 +297,18 @@ void maze::dfs_stack() {
     const int dx[4] = {0, 1, 0, -1};  // 右、下、左、上
     const int dy[4] = {1, 0, -1, 0};
     
-    while(!stack.isEmpty() && !foundpath) {
+    while(!stack.isEmpty() && !foundpath && !isExit) {
+        
+        while(isPaused && !isExit) {
+            QThread::msleep(100); // 暂停时小睡，减少CPU使用率
+            QCoreApplication::processEvents(); // 允许处理其他事件
+        }
+        
+        if(isExit) {
+            emit searchOver(); // 如果被终止，发出搜索结束信号
+            return;
+        }
+        
         // 取出栈顶元素但不弹出
         Pos current = stack.peek();
         
@@ -341,6 +377,7 @@ void maze::dfs_stack() {
 
 // 链队BFS
 void maze::bfs_queue() {
+    resetState(); 
     foundpath = false;
     
     // 初始化访问标记数组
@@ -372,7 +409,24 @@ void maze::bfs_queue() {
     
     PosPath* endPos = nullptr; // 用于存储找到的终点路径
     
-    while(!queue.isEmpty() && !foundpath) {
+    while(!queue.isEmpty() && !foundpath && !isExit) {
+        // 非阻塞式事件处理
+        QCoreApplication::processEvents();
+        // 添加暂停检查
+        while(isPaused && !isExit) {
+            QThread::msleep(100); 
+            QCoreApplication::processEvents(); // 允许处理其他事件
+        }
+        
+        if(isExit) {
+            // 清理队列中的所有元素
+            while(!queue.isEmpty()) {
+                delete queue.dequeue();
+            }
+            emit searchOver(); // 如果被终止，发出搜索结束信号
+            return;
+        }
+
         // 取出队头元素
         PosPath* current = queue.dequeue();
         

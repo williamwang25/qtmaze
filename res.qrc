@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/img">
+        <file>res/maze_font.png</file>
+        <file>res/maze_icon.png</file>
+    </qresource>
+</RCC>

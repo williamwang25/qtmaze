@@ -100,8 +100,8 @@ void mazeWidget::time_update() {
     } else {
         timer->stop();                          //停止计时器
         ui->progressBar->setVisible(false);     //隐藏进度条
-        keybord_switch = false;                 //设置键盘响应、
-        painting_switch = false;                //绘图响应、
+        keybord_switch = false;                 //设置键盘响应
+        painting_switch = false;                //绘图响应
         timing_switch = false;                  //计时响应为关闭状态
         repaint();                              //清除画布
         ui->start_btn->setEnabled(true);        //|
@@ -111,7 +111,7 @@ void mazeWidget::time_update() {
         ui->end_btn->setEnabled(false);         //|
         ui->setting_btn->setEnabled(true);      //|
         //提示
-        QMessageBox outgrade(QMessageBox::NoIcon, "恭喜", "您得分:" + QString::number(grade), QMessageBox::Ok);
+        QMessageBox outgrade(QMessageBox::NoIcon,"", "得分:" + QString::number(grade), QMessageBox::Ok);
         outgrade.exec();
         //分数重置
         grade = 0;
@@ -144,15 +144,30 @@ void mazeWidget::on_stop_ptn_clicked() {
         timer->stop();
         ui->stop_ptn->setText("继续");
         stop_switch = false;
+        //设置暂停状态
+        if(map) {
+            map->setPause(true);
+        }
+
     } else {
         timing_switch = true;
         keybord_switch = true;
         timer->start();
         ui->stop_ptn->setText("暂停");
         stop_switch = true;
+
+        // 取消暂停状态
+        if(map) {
+            map->setPause(false);
+        }
     }
 }
 void mazeWidget::on_end_btn_clicked() {
+    //设置终止状态
+    if(map) {
+        map->setExit(true);
+    }
+
     timing_switch = false;
     painting_switch = false;
     keybord_switch = false;
@@ -260,6 +275,8 @@ void mazeWidget::on_dfs_btn_clicked()
     connect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
     connect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
     
+    map->resetState(); // 重置状态
+
     // 设置可视化延迟
     map->setspeed(20); // 设置较慢的速度以便观察
     
@@ -278,8 +295,8 @@ void mazeWidget::on_bfs_btn_clicked()
     connect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
     connect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
     
+    map->resetState();
     map->setspeed(20);
-    
     // 使用链队列实现的BFS搜索
     map->bfs_queue();
 }

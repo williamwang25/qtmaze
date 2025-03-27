@@ -41,7 +41,10 @@ struct Pos{
 class maze :public QObject{
     Q_OBJECT
 private:
-    bool foundpath = false;
+    bool foundpath = false; // 是否找到路径
+    bool isPaused = false; // 是否暂停
+    bool isExit = false; // 是否退出
+
     int delay;
     int level;  //迷宫阶数
     int** map;  //地图存储空间
@@ -79,6 +82,11 @@ public:
     void search(int k);
     bool dfs(int k);
     void solve();
+    void setPause(bool state); // 设置暂停
+    void setExit(bool state); // 设置退出
+    bool getPauseState() const; // 获取暂停状态
+    void resetState(); // 重置状态
+    
     //重置地图
     void rebuildmap();
     int* operator[](int index);

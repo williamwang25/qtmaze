@@ -27,8 +27,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         maze.h maze.cpp
-
         mazewidget.ui
+        menu.h menu.cpp menu.ui
+        res.qrc
+        rank.h rank.cpp rank.ui
 
     )
 # Define target properties for Android with Qt 6 as:
