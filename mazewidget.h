@@ -25,7 +25,8 @@ public:
 protected:
     void paintEvent(QPaintEvent*);        //绘图事件
     void keyPressEvent(QKeyEvent*);       //按键按下事件
-
+signals:
+    void backToMenu(); // 返回菜单
 private slots:
     void on_start_btn_clicked();    //|
     void on_stop_ptn_clicked();     //|
@@ -36,13 +37,17 @@ private slots:
     void on_solve_btn_clicked();
     void on_searchOver();
     void maze_repaint();
-
-
+    
+    void on_compete_button_clicked(); // 竞赛模式按钮
+    void competitionStepUpdate(); // 定时更新竞赛状态
+    void onCompetitionOver(int winner); // 处理竞赛结束
 
 
     void on_dfs_btn_clicked();
 
     void on_bfs_btn_clicked();
+
+    void on_menu_btn_clicked();
 
 private:
     Ui::mazeWidget* ui;         //ui对象
@@ -56,8 +61,11 @@ private:
     int grade;                  //分数
     int time;                   //时间
     QTimer* timer;
+    QTimer* competeTimer;       // 竞赛定时器
+    
+    bool competeMode; // 是否为竞赛模式
+    bool competitionStepUpdate_resetFirstCheck();
 
-    // 其他成员...
 
 };
 #endif // MAZEWIDGET_H

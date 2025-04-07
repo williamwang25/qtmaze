@@ -1,12 +1,13 @@
 #include <QObject>
-
+#include <QInputDialog>
+#include "rank.h"
 #include "mazewidget.h"
 #include "ui_mazewidget.h"
 mazeWidget::mazeWidget(QWidget* parent)
     : QWidget(parent)
     , ui(new Ui::mazeWidget), map(new maze(20)) // 将 maze 实例传递给 solve 的构造函数
     , painting_switch(false), timing_switch(false)
-    , keybord_switch(false), stop_switch(false), grade(0), time(0) {
+    , keybord_switch(false), stop_switch(false), grade(0), time(0), competeMode(false) {
     //TODO:状态栏
     ui->setupUi(this);
     ui->progressBar->setVisible(false);                 //初始隐藏进度条
@@ -21,25 +22,36 @@ mazeWidget::mazeWidget(QWidget* parent)
     ui->plaque_grade->setText("  ");
     ui->label->setVisible(true);
     ui->solve_btn->setEnabled(false);
+
+    // 初始化竞赛计时器，设置较长的间隔，便于观察
+    competeTimer = new QTimer(this);
+    connect(competeTimer, &QTimer::timeout, this, &mazeWidget::competitionStepUpdate);
+    connect(map, &maze::competitionOver, this, &mazeWidget::onCompetitionOver);
+    
+    // 默认隐藏竞赛按钮，在race_btn点击时显示
+    ui->compete_button->setVisible(false);
+
 }
 
 mazeWidget::~mazeWidget(){
     delete ui;
     delete map;
     delete timer;
+    delete competeTimer;
 }
 void mazeWidget::paintEvent(QPaintEvent*) {
-    if(!painting_switch) return;
-    QPainter painter(this);     //画笔对象
-    //绘图逻辑：
+    if((!painting_switch) && (!competeMode)) return;
+    
+    QPainter painter(this);
+    
     int perblock = (std::min(ui->frame->width(), ui->frame->height()) - 20) / (map->getside());
     int start_x = ui->frame->x() + (ui->frame->width() - (ui->frame->x() + (map->getside()) * perblock)) / 2;
     int strat_y = ui->frame->y() + (ui->frame->height() - (ui->frame->y() + (map->getside()) * perblock)) / 2;
+    
+    // 先绘制地图
     for(int i = 0; i < map->getlevel() * 2 + 1; i++) {
         for(int j = 0; j < map->getlevel() * 2 + 1; j++) {
-            if(i == map->p_x && j == map->p_y) {
-                painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::red));
-            } else if(map->getmap()[i][j] == 7) {
+            if(map->getmap()[i][j] == 7) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::yellow));
             } else if(map->getmap()[i][j] == 3 || map->getmap()[i][j] == 4) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::white));
@@ -51,13 +63,30 @@ void mazeWidget::paintEvent(QPaintEvent*) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::lightGray));
             } else if(map->getmap()[i][j] == 9) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::cyan));
-            }
-            else {
+            } else if(map->getmap()[i][j] == 0 || map->getmap()[i][j] == -1) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::gray));
             }
         }
     }
+    
+    // 绘制三个实体
+    // 玩家 - 红色
+    painter.fillRect(start_x + map->p_x * perblock, strat_y + map->p_y * perblock, perblock, perblock, QBrush(Qt::red));
+    
+    // 在竞赛模式下显示算法位置
+    if(competeMode) {
+        // DFS - 深紫色
+        if(map->dfsRunning) {
+            painter.fillRect(start_x + map->getDfsX() * perblock, strat_y + map->getDfsY() * perblock, perblock, perblock, QBrush(Qt::darkMagenta));
+        }
+        
+        // BFS - 深蓝色
+        if(map->bfsRunning) {
+            painter.fillRect(start_x + map->getBfsX() * perblock, strat_y + map->getBfsY() * perblock, perblock, perblock, QBrush(Qt::darkBlue));
+        }
+    }
 }
+
 void mazeWidget::keyPressEvent(QKeyEvent* event) {
     if(!keybord_switch) return;
     int x = map->p_x;
@@ -191,15 +220,15 @@ void mazeWidget::on_end_btn_clicked() {
     repaint();
 }
 void mazeWidget::on_rule_btn_clicked() {
-    QMessageBox rule(QMessageBox::NoIcon, "规则", "计时200秒，根据迷宫等级与经过关卡记分。\n操作方式：WASD或者IJKL控制方向。", QMessageBox::Ok);
+    QMessageBox rule(QMessageBox::NoIcon, "规则", "计时200秒，根据迷宫等级与经过关卡记分。\n操作方式：WASD。", QMessageBox::Ok);
     rule.exec();
 }
 void mazeWidget::on_setting_btn_clicked() {
     QStringList difficultys;
-    difficultys << tr("小朋友难度(5阶迷宫)") << tr("简单难度(10阶迷宫)") << tr("普通难度(20阶迷宫)") << tr("困难难度(40阶迷宫)");
+    difficultys << tr("5阶迷宫") << tr("简单难度(10阶迷宫)") << tr("普通难度(20阶迷宫)") << tr("困难难度(40阶迷宫)");
     QString difficulty = QInputDialog::getItem(this, tr("选择难度"),
                                                tr("请选择一个条目"), difficultys, 0, false);
-    if(difficulty == tr("小朋友难度(5阶迷宫)")) {
+    if(difficulty == tr("5阶迷宫")) {
         delete map;
         map = new maze(5);
         map->makemap();
@@ -234,14 +263,7 @@ void mazeWidget::on_solve_btn_clicked() {
     map->setspeed(250);  // 100毫秒延迟
 
     map->solve();
-    //repaint();
-    
-    
-    // map->makemap();
-    // repaint();
-    // grade += pow(map->getlevel(), 2);
-    // ui->grade_value->setText(QString::number(grade));
-    // ui->solve_btn->setEnabled(true);
+   
 }
 
 // 添加新的槽函数处理搜索完成
@@ -269,7 +291,6 @@ void mazeWidget::on_dfs_btn_clicked()
 {
     ui->dfs_btn->setEnabled(false);
     
-    // 确保只连接一次信号与槽
     disconnect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
     disconnect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
     connect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
@@ -289,7 +310,6 @@ void mazeWidget::on_bfs_btn_clicked()
 {
     ui->bfs_btn->setEnabled(false);
     
-    // 确保只连接一次信号与槽
     disconnect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
     disconnect(map, &maze::searchOver, this, &mazeWidget::on_searchOver);
     connect(map, &maze::mazeUpdated, this, &mazeWidget::maze_repaint);
@@ -299,4 +319,203 @@ void mazeWidget::on_bfs_btn_clicked()
     map->setspeed(20);
     // 使用链队列实现的BFS搜索
     map->bfs_queue();
+}
+
+bool mazeWidget::competitionStepUpdate_resetFirstCheck() {
+    static bool firstCheck = true;
+    bool result = firstCheck;
+    firstCheck = true;
+    return result;
+}
+
+// 实现人机竞速按钮的槽函数
+void mazeWidget::on_compete_button_clicked() {
+    if(!competeMode) {
+
+        static_cast<void>(competitionStepUpdate_resetFirstCheck());
+
+        // 首先生成新地图，确保有足够大的搜索空间
+        map->makemap(); 
+        
+        // 开始竞赛
+        competeMode = true;
+        ui->compete_button->setText("停止竞赛");
+        
+        // 确保UI状态正确
+        painting_switch = true; // 启用绘图
+        keybord_switch = true;  // 启用键盘
+        
+        // 设置迷宫为竞赛模式
+        map->setCompeteMode(true);
+        
+        // 启动DFS和BFS算法
+        map->dfsRunning = true;
+        map->bfsRunning = true;
+        
+        // 更新界面
+        repaint();
+        
+        // 启动定时器进行更新，设置较慢的速度(500ms)使移动可见
+        competeTimer->start(1000);
+    } else {
+        // 停止竞赛
+        competeMode = false;
+        ui->compete_button->setText("开始竞赛");
+        
+        map->dfsRunning = false;
+        map->bfsRunning = false;
+        competeTimer->stop();
+        
+        // 重置地图
+        map->makemap();
+        repaint();
+    }
+}
+
+
+void mazeWidget::competitionStepUpdate() {
+    static bool firstCheck = true;
+    
+    if(firstCheck) {
+        firstCheck = false;
+        // 确保玩家起点不是终点
+        if(map->getmap()[map->p_x][map->p_y] == 6) {
+            // 如果起点就是终点，重新生成地图
+            map->makemap();
+            map->setCompeteMode(true);
+            repaint();
+            return;
+        }
+        
+        // 添加一个延迟，确保不会立即检查玩家是否胜利
+        QTimer::singleShot(500, this, [this]() {
+            repaint();
+        });
+        
+        return; // 第一次调用时直接返回，不检查胜利
+    }
+    
+    // 检查玩家是否到达终点，确保不是刚开始就胜利
+    if(map->getmap()[map->p_x][map->p_y] == 6) {
+        map->winner = maze::Player;
+        onCompetitionOver(static_cast<int>(maze::Player));
+        firstCheck = true; // 重置标志
+        return;
+    }
+
+
+    // 每次调用时，让DFS和BFS各移动一步
+    bool dfsUpdated = false;
+    bool bfsUpdated = false;
+    
+    if(map->dfsRunning) {
+        dfsUpdated = map->moveDfsOneStep();
+    }
+    
+    if(map->bfsRunning) {
+        bfsUpdated = map->moveBfsOneStep();
+    }
+    
+    // 如果都没有更新，可能是卡住了
+    if(!dfsUpdated && !bfsUpdated && !map->dfsRunning && !map->bfsRunning) {
+        QMessageBox::information(this, "竞赛提示", "算法无法继续前进，竞赛结束！");
+        competeTimer->stop();
+        competeMode = false;
+        ui->compete_button->setText("开始竞赛");
+        
+        // 重置地图
+        map->makemap();
+        repaint();
+    }
+    
+    // 强制更新界面
+    repaint();
+}
+
+// 处理竞赛结束
+void mazeWidget::onCompetitionOver(int winner) {
+    // 停止所有竞赛相关活动
+    competeTimer->stop();
+    map->dfsRunning = false;
+    map->bfsRunning = false;
+    
+    QString winnerText;
+    int scoreMultiplier = 0;
+    
+    if(winner == maze::Player) {
+        winnerText = "恭喜您赢得了比赛！";
+        scoreMultiplier = 3; // 赢得比赛加3倍分数
+    } else if(winner == maze::DFS) {
+        winnerText = "DFS算法赢得了比赛！";
+        scoreMultiplier = 1; // 输了比赛加1倍分数
+    } else if(winner == maze::BFS) {
+        winnerText = "BFS算法赢得了比赛！";
+        scoreMultiplier = 1; // 输了比赛加1倍分数
+    }
+    
+    // 计算并更新分数
+    int earnedPoints = pow(map->getlevel(), scoreMultiplier);
+    grade += earnedPoints;
+    ui->grade_value->setText(QString::number(grade));
+    
+    // 显示结果
+    QString message = winnerText + "\n您获得了 " + QString::number(earnedPoints) + " 分！";
+    QMessageBox::information(this, "竞赛结束", message);
+    
+    // 保存分数
+    if(grade > 0) {
+        bool ok;
+        QString playerName = QInputDialog::getText(this, "保存得分", 
+                                                "请输入您的名字:", QLineEdit::Normal, 
+                                                "", &ok);
+        if(ok && !playerName.isEmpty()) {
+            rank::addScore(playerName, grade);
+            QMessageBox::information(this, "分数保存", "您的分数已保存到排行榜！");
+        }
+    }
+    
+    // 重置竞赛模式
+    competeMode = false;
+    ui->compete_button->setText("开始竞赛");
+    
+    // 重新生成地图
+    QTimer::singleShot(500, this, [this]() {
+        map->makemap();
+        repaint();
+    });
+}
+
+void mazeWidget::on_menu_btn_clicked()
+{
+    timer->stop();
+    competeTimer->stop();
+    
+    if(map) {
+        map->setExit(true);
+    }
+    
+    timing_switch = false;
+    painting_switch = false;
+    keybord_switch = false;
+    stop_switch = false;
+    competeMode = false;
+    
+    if(grade > 0) {
+        QMessageBox::StandardButton reply = QMessageBox::question(this, "保存分数", 
+                                         "是否要保存您的得分？", 
+                                         QMessageBox::Yes | QMessageBox::No);
+        if(reply == QMessageBox::Yes) {
+            bool ok;
+            QString playerName = QInputDialog::getText(this, "保存得分", 
+                                                  "请输入您的名字:", QLineEdit::Normal, 
+                                                  "", &ok);
+            if(ok && !playerName.isEmpty()) {
+                rank::addScore(playerName, grade);
+                QMessageBox::information(this, "分数保存", "您的分数已保存到排行榜！");
+            }
+        }
+    }
+    
+    emit backToMenu();
+    this->close();
 }

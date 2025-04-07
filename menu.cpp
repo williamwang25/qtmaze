@@ -20,15 +20,14 @@ void menu::on_start_btn_clicked()
     if (!gameWidget) {
         gameWidget = new mazeWidget();
         
-        // 连接关闭信号，当mazeWidget关闭时重新显示菜单
-        connect(gameWidget, &mazeWidget::destroyed, [this]() {
-            gameWidget = nullptr;
-            this->show();
+        // 连接返回菜单的信号
+        connect(gameWidget, &mazeWidget::backToMenu, this, [this]() {
+            show(); // 显示菜单
         });
     }
     
     gameWidget->show();
-    this->hide();
+    hide();
 }
 
 
@@ -37,22 +36,26 @@ void menu::on_race_btn_clicked()
     if (!gameWidget) {
         gameWidget = new mazeWidget();
         
-        connect(gameWidget, &mazeWidget::destroyed, [this]() {
-            gameWidget = nullptr;
-            this->show();
+        // 连接返回菜单的信号
+        connect(gameWidget, &mazeWidget::backToMenu, this, [this]() {
+            show(); // 显示菜单
         });
     }
+    
+    // 显示竞赛按钮
+    gameWidget->findChild<QPushButton*>("compete_button")->setVisible(true);
+    
     gameWidget->show();
-    this->hide();
-
+    hide();
 }
 
 
 void menu::on_rank_btn_clicked()
 {
-
+    rank* rankWidget = new rank();
+    rankWidget->showRanking();
+    rankWidget->show();
 }
-
 
 void menu::on_exit_btn_clicked()
 {

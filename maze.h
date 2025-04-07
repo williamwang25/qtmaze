@@ -8,6 +8,9 @@
 #include <QKeyEvent>        //Qt按键事件头文件
 #include <QTimer>           //Qt计时器头文件
 #include <QInputDialog>     //Qt输入对话框头文件
+
+#include "stack.h"
+#include "queue.h"
 /**************************************************
  * -1:边界 0:墙壁
  * 1:空单元(初始化后未判定的单元)
@@ -34,10 +37,20 @@
     CurrentSearch = 9
 };
 
+
 struct Pos{
     int i;
     int j;
 };
+
+struct PosPath {
+    int i;
+    int j;
+    PosPath* prev;  // 前驱结点指针
+    
+    PosPath(int x, int y, PosPath* p = nullptr) : i(x), j(y), prev(p) {}
+};
+
 class maze :public QObject{
     Q_OBJECT
 private:
@@ -63,6 +76,10 @@ private:
     //随机选择一个待定墙壁判断并操作
     void randomCell();
 
+    bool competeMode;     // 是否为竞赛模式
+    Stack<Pos> dfsStack;  // DFS用的栈
+    Queue<PosPath*> bfsQueue; // BFS用的队列
+
 
 public:
     //构造函数申请内存空间
@@ -75,6 +92,42 @@ public:
     //生成地图
     void makemap();
     int p_x, p_y; //当前位置
+    int dfs_x, dfs_y;   // DFS算法位置
+    int bfs_x, bfs_y;   // BFS算法位置
+    // 算法是否在运行
+    bool dfsRunning;
+    bool bfsRunning;
+
+    enum Winner {
+        None,
+        Player,
+        DFS,
+        BFS
+    };
+
+    Winner winner;
+
+    // 获取三个角色的位置
+    int getPlayerX() const { return p_x; }
+    int getPlayerY() const { return p_y; }
+    int getDfsX() const { return dfs_x; }
+    int getDfsY() const { return dfs_y; }
+    int getBfsX() const { return bfs_x; }
+    int getBfsY() const { return bfs_y; }
+    
+    // 重置位置
+    void resetPositions();
+    
+    // 竞赛模式DFS单步移动
+    bool moveDfsOneStep();
+    
+    // 竞赛模式BFS单步移动
+    bool moveBfsOneStep();
+    
+    // 设置竞赛模式
+    void setCompeteMode(bool mode);
+    bool isCompeteMode() const { return competeMode; }
+
     Pos x[1000];
     int p[100][100];
     bool able(int k,int t);
@@ -96,20 +149,14 @@ public:
     // 链栈DFS
     void dfs_stack();
     // 链队BFS
-    struct PosPath {
-        int i;
-        int j;
-        PosPath* prev;  // 前驱结点指针
-        
-        PosPath(int x, int y, PosPath* p = nullptr) : i(x), j(y), prev(p) {}
-    };
-
     void bfs_queue();
 
 
 signals:
     void mazeUpdated();
     void searchOver();
+    void competitionOver(int winner); // 添加竞赛结束信号
+
     
 };
 

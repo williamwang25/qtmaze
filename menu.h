@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include "mazewidget.h"
+#include "rank.h"
 
 namespace Ui {
 class menu;
