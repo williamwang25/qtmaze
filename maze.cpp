@@ -104,15 +104,12 @@ void maze:: randomCell() {
                 t++;
                 if (t == k) {
                     updateCell(i, j);
-                    goto loopout;
+                    return;
                 }
             }
         }
     }
-loopout:
-    if (!judge()) {
-        map[start_x][start_y] = 6;
-    }
+
 }
 
 //构造函数申请内存空间
@@ -182,11 +179,71 @@ void maze:: makemap() {
     while (judge()) {
         a++;
         randomCell();
-        // if (a % 30 == 0) {
-        //     printarr(map, level);
-        //     system("PAUSE");
-        // }
     }
+      // 在迷宫生成完成后，记录实际起点位置
+      int real_start_x = -1;
+      int real_start_y = -1;
+      for(int i = 0; i < level*2+1; i++) {
+          for(int j = 0; j < level*2+1; j++) {
+              if(map[i][j] == 5) {
+                  real_start_x = i;
+                  real_start_y = j;
+                  break;
+              }
+          }
+          if(real_start_x != -1) break;
+      }
+      
+      // 如果找不到起点标记，使用(1,1)作为起点
+      if(real_start_x == -1) {
+          real_start_x = 1;
+          real_start_y = 1;
+          map[real_start_x][real_start_y] = 5;
+      }
+      
+      // 更新玩家位置
+      p_x = real_start_x;
+      p_y = real_start_y;
+      
+      // 选择距离真实起点最远的点作为终点
+      int max_dist = 0;
+      int end_i = -1, end_j = -1;
+      
+      for (int i = 1; i < level * 2; i++) {
+          for (int j = 1; j < level * 2; j++) {
+              if ((i != real_start_x || j != real_start_y) && 
+                  (map[i][j] == 3 || map[i][j] == 4)) {
+                  int dist = abs(i - real_start_x) + abs(j - real_start_y);
+                  if (dist > max_dist && dist >= level) {  // 确保距离至少为level
+                      max_dist = dist;
+                      end_i = i;
+                      end_j = j;
+                  }
+              }
+          }
+      }
+      
+      // 如果找不到足够远的点，接受次优解
+      if (end_i == -1) {
+          max_dist = 0;
+          for (int i = 1; i < level * 2; i++) {
+              for (int j = 1; j < level * 2; j++) {
+                  if ((i != real_start_x || j != real_start_y) && 
+                      (map[i][j] == 3 || map[i][j] == 4)) {
+                      int dist = abs(i - real_start_x) + abs(j - real_start_y);
+                      if (dist > max_dist) {
+                          max_dist = dist;
+                          end_i = i;
+                          end_j = j;
+                      }
+                  }
+              }
+          }
+      }
+      
+      if (end_i != -1 && end_j != -1) {
+          map[end_i][end_j] = 6;  // 设置终点
+      }
 }
 int* maze::operator[](int index) {
     return map[index];
@@ -346,7 +403,7 @@ void maze::dfs_stack() {
                 map[pos.i][pos.j] = 7; // 已经过路径
             }
             
-            map[end_x][end_y] = 6; // 确保终点标记不变
+            //map[end_x][end_y] = 6; // 确保终点标记不变
             emit mazeUpdated();
             emit searchOver();
             return;
@@ -442,7 +499,7 @@ void maze::bfs_queue() {
         PosPath* current = queue.dequeue();
         
         // 标记当前位置为搜索中
-        map[current->i][current->j] = 9; // 当前搜索路径
+        map[current->i][current->j] = 10; // 当前搜索路径
         emit mazeUpdated(); // 更新界面
         
         // 延时显示搜索过程
@@ -489,7 +546,7 @@ void maze::bfs_queue() {
             delete temp; // 释放内存
         }
         
-        map[end_x][end_y] = 6; // 确保终点标记不变
+        //map[end_x][end_y] = 6; // 确保终点标记不变
         emit mazeUpdated();
     } else {
         // 清理队列中的所有元素
@@ -532,8 +589,74 @@ void maze::resetPositions() {
 // 设置竞赛模式
 void maze::setCompeteMode(bool mode) {
     competeMode = mode;
+    
     if(competeMode) {
-        // 先清空之前可能存在的路径标记
+        // 初始化访问数组
+        for(int i = 0; i < level*2+1; i++) {
+            for(int j = 0; j < level*2+1; j++) {
+                if(map[i][j] == 0 || map[i][j] == -1) {
+                    p[i][j] = 1; // 墙壁和边界不可访问
+                } else {
+                    p[i][j] = 0; // 其他位置可访问
+                }
+                
+                // 初始化DFS和BFS的访问记录
+                dfsVisited[i][j] = false;
+                bfsVisited[i][j] = false;
+            }
+        }
+
+        // 重新生成地图
+        makemap();
+        
+        // 确保起点和终点距离足够远
+        bool validMap = false;
+        int tries = 0;
+        
+        while(!validMap && tries < 10) { // 增加尝试次数
+            // 找到实际的起点位置
+            int actualStartX = -1, actualStartY = -1;
+            for(int i = 0; i < level*2+1; i++) {
+                for(int j = 0; j < level*2+1; j++) {
+                    if(map[i][j] == 5) {
+                        actualStartX = i;
+                        actualStartY = j;
+                        break;
+                    }
+                }
+                if(actualStartX != -1) break;
+            }
+            
+            // 找到终点位置
+            int endX = -1, endY = -1;
+            for(int i = 0; i < level*2+1; i++) {
+                for(int j = 0; j < level*2+1; j++) {
+                    if(map[i][j] == 6) {
+                        endX = i;
+                        endY = j;
+                        break;
+                    }
+                }
+                if(endX != -1) break;
+            }
+            
+            // 计算实际起点到终点的曼哈顿距离
+            int distance = abs(actualStartX - endX) + abs(actualStartY - endY);
+            
+            // 如果距离太短或起点就是终点，重新生成地图
+            if(distance < level*1.5 || (actualStartX == endX && actualStartY == endY)) {
+                makemap();
+                tries++;
+            } else {
+                validMap = true;
+                
+                // 更新内部起点变量，确保与标记为5的方格一致
+                start_x = actualStartX;
+                start_y = actualStartY;
+            }
+        }
+        
+        // 清空之前可能存在的路径标记
         for(int i = 0; i < level*2+1; i++) {
             for(int j = 0; j < level*2+1; j++) {
                 if(map[i][j] == 7 || map[i][j] == 8 || map[i][j] == 9) {
@@ -541,38 +664,9 @@ void maze::setCompeteMode(bool mode) {
                 }
             }
         }
+        
+        // 重置位置 - 会使用上面更新过的start_x和start_y
         resetPositions();
-        makemap(); // 重新生成地图
-        
-        // 确保玩家从起点开始
-        p_x = start_x;
-        p_y = start_y;
-        
-        // 检查起点终点是否相同，若相同则重新生成地图
-        bool startIsEnd = false;
-        for(int i = 0; i < level*2+1; i++) {
-            for(int j = 0; j < level*2+1; j++) {
-                if(map[i][j] == 6) {
-                    if(i == start_x && j == start_y) {
-                        startIsEnd = true;
-                    }
-                    break;
-                }
-            }
-            if(startIsEnd) break;
-        }
-        
-        if(startIsEnd) {
-            makemap(); // 重新生成地图
-        }
-        
-        resetPositions();
-        
-        // 检查起点终点是否相同，若相同则重新生成地图
-        if(start_x == end_x && start_y == end_y) {
-            makemap();
-            resetPositions();
-        }
         
         // 准备DFS的初始数据
         Pos startPos = {start_x, start_y};
@@ -592,11 +686,9 @@ void maze::setCompeteMode(bool mode) {
                 }
             }
         }
-        
-        // 标记起点为已访问，但确保DFS和BFS可以各自使用
-        // 不先标记，让各自的移动函数去标记
     }
 }
+
 
 // DFS单步移动
 bool maze::moveDfsOneStep() {
@@ -617,13 +709,9 @@ bool maze::moveDfsOneStep() {
         return true;
     }
     
-    // 标记当前位置已访问(使用不同的值以避免与BFS冲突)
-    p[dfs_x][dfs_y] = 2;
-
-      // 添加可视化 - 显示DFS的路径
-      if(map[dfs_x][dfs_y] != 5 && map[dfs_x][dfs_y] != 6) {
-        // 直接修改地图
-        map[dfs_x][dfs_y] = 9; // 用9标记DFS路径
+    // 直接修改地图 - 不修改起点和终点
+    if(map[dfs_x][dfs_y] != 5 && map[dfs_x][dfs_y] != 6) {
+        map[dfs_x][dfs_y] = 9; // DFS路径
     }
     
     // 尝试四个方向
@@ -632,13 +720,18 @@ bool maze::moveDfsOneStep() {
         int ni = dfs_x + dx[dir];
         int nj = dfs_y + dy[dir];
         
-        // 检查是否可以移动到下一个位置
-        if(p[ni][nj] == 0 && (map[ni][nj] == 3 || map[ni][nj] == 4 || 
-           map[ni][nj] == 5 || map[ni][nj] == 6)) {
+        // 修改条件：使用地图值判断是否可访问，防止循环
+        if(map[ni][nj] != 0 && map[ni][nj] != -1 &&  // 不是墙壁和边界
+           p[ni][nj] != 1 &&                         // 不是墙壁标记
+           map[ni][nj] != 9) {                        // 不是DFS已访问路径
             // 可以移动
             Pos next = {ni, nj};
             dfsStack.push(next);
-            p[ni][nj] = 2; // 提前标记为已访问，避免BFS访问
+            p[ni][nj] = 2; // 提前标记为DFS已访问
+            
+            // 记录这个位置已被DFS预定，防止BFS访问
+            dfsVisited[ni][nj] = true;
+            
             found = true;
             break;
         }
@@ -646,7 +739,13 @@ bool maze::moveDfsOneStep() {
     
     // 如果四个方向都不可行，回溯
     if(!found) {
-        dfsStack.pop();
+        // 先标记当前位置为已回溯，避免将来再次访问
+        Pos popped = dfsStack.pop();
+        
+        // 修复：保留地图上的视觉标记，但重置p数组，关键是使用地图值作为判断条件
+        // 这样即使p值被重置，也不会重复访问已探索的路径
+        p[popped.i][popped.j] = 0; // 重置为未访问，允许从其他路径到达
+        
         if(!dfsStack.isEmpty()) {
             Pos backtrack = dfsStack.peek();
             dfs_x = backtrack.i;
@@ -664,59 +763,83 @@ bool maze::moveDfsOneStep() {
 
 // BFS单步移动
 bool maze::moveBfsOneStep() {
+
+
     if(!bfsRunning || bfsQueue.isEmpty()) {
         bfsRunning = false;
         return false;
     }
     
-    // 取出队头元素
-    PosPath* current = bfsQueue.dequeue();
-    bfs_x = current->i;
-    bfs_y = current->j;
+    // 获取当前队列的大小，这代表当前层次的节点数量
+    int currentLevelSize = bfsQueue.getSize();
+    bool anyAdded = false;
     
-    // 检查是否到达终点
-    if(map[bfs_x][bfs_y] == 6) {
-        winner = BFS;
-        emit competitionOver(static_cast<int>(BFS));
-        delete current;
-        return true;
-    }
-    
-    // 标记当前位置已访问
-    p[bfs_x][bfs_y] = 3; // 使用不同的标记，避免与DFS冲突
-    
-    bool added = false; // 跟踪是否添加了新节点
-    
-    // 尝试四个方向
-    for(int dir = 0; dir < 4; dir++) {
-        int ni = bfs_x + dx[dir];
-        int nj = bfs_y + dy[dir];
+    // 处理当前层次的所有节点
+    for(int i = 0; i < currentLevelSize; i++) {
+        // 取出队头元素
+        PosPath* current = bfsQueue.dequeue();
+        bfs_x = current->i;
+        bfs_y = current->j;
         
-        // 检查是否可以移动到下一个位置(p[ni][nj] != 2确保不访问DFS已访问的)
-        if(p[ni][nj] == 0 && (map[ni][nj] == 3 || map[ni][nj] == 4 || 
-           map[ni][nj] == 5 || map[ni][nj] == 6)) {
-            // 可以移动
-            PosPath* next = new PosPath(ni, nj, current);
-            bfsQueue.enqueue(next);
-            p[ni][nj] = 3; // 标记为已访问
-            added = true;
+        // 检查是否到达终点
+        if(map[bfs_x][bfs_y] == 6) {
+            winner = BFS;
+            emit competitionOver(static_cast<int>(BFS));
+            delete current;
+            return true;
+        }
+        
+        // 标记当前位置已访问
+        p[bfs_x][bfs_y] = 3; // 使用不同的标记，避免与DFS冲突
+        
+        // 如果不是起点或终点，标记为已搜索
+        if(map[bfs_x][bfs_y] != 5 && map[bfs_x][bfs_y] != 6) {
+            map[bfs_x][bfs_y] = 8; // 已搜索路径
+        }
+        
+        // 尝试四个方向
+        for(int dir = 0; dir < 4; dir++) {
+            int ni = bfs_x + dx[dir];
+            int nj = bfs_y + dy[dir];
+            
+            // 修改条件：避免访问DFS已预定的位置
+            if((map[ni][nj] != 0 && map[ni][nj] != -1) && // 不是墙壁和边界
+               p[ni][nj] != 1 &&                         // 不是墙壁标记
+               !dfsVisited[ni][nj] &&                    // 不是DFS已预定的位置
+               map[ni][nj] != 8 &&                       // 不是BFS已访问路径
+               map[ni][nj] != 10) {                      // 不是BFS当前前沿
+                
+                // 可以移动...
+                PosPath* next = new PosPath(ni, nj, current);
+                bfsQueue.enqueue(next);
+                p[ni][nj] = 3; // 标记为BFS已访问
+                
+                // 记录此位置已被BFS入队
+                bfsVisited[ni][nj] = true;
+                
+                // 标记为BFS搜索前沿
+                if(map[ni][nj] != 5 && map[ni][nj] != 6) {
+                    map[ni][nj] = 10; // BFS前沿
+                }
+                
+                anyAdded = true;
+                
+                // 立即检查是否是终点
+                if(ni == end_x && nj == end_y) {
+                    winner = BFS;
+                    emit competitionOver(static_cast<int>(BFS));
+                    delete current;
+                    return true;
+                }
+            }
         }
     }
     
-    delete current;
-    
-    if(!added && bfsQueue.isEmpty()) {
-        bfsRunning = false; // 没有路可走，结束BFS
+    if(!anyAdded && bfsQueue.isEmpty()) {
+        bfsRunning = false;
         return false;
     }
-
-    // 正确修改地图显示BFS路径
-    if(map[bfs_x][bfs_y] != 5 && map[bfs_x][bfs_y] != 6) {
-        // 直接修改地图
-        map[bfs_x][bfs_y] = 8; // 用8标记BFS路径
-    }
     
-    // 确保发送更新信号
     emit mazeUpdated();
     return true;
 }

@@ -97,6 +97,9 @@ public:
     // 算法是否在运行
     bool dfsRunning;
     bool bfsRunning;
+    // DFS和BFS的访问记录数组
+    bool dfsVisited[100][100];
+    bool bfsVisited[100][100];
 
     enum Winner {
         None,

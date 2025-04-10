@@ -65,6 +65,7 @@ private:
     
     bool competeMode; // 是否为竞赛模式
     bool competitionStepUpdate_resetFirstCheck();
+    bool isWalkable(int value); // 判断格子是否可行走
 
 
 };

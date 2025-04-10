@@ -1,8 +1,10 @@
 #include <QObject>
+#include <QColor>
 #include <QInputDialog>
 #include "rank.h"
 #include "mazewidget.h"
 #include "ui_mazewidget.h"
+
 mazeWidget::mazeWidget(QWidget* parent)
     : QWidget(parent)
     , ui(new Ui::mazeWidget), map(new maze(20)) // 将 maze 实例传递给 solve 的构造函数
@@ -43,48 +45,83 @@ void mazeWidget::paintEvent(QPaintEvent*) {
     if((!painting_switch) && (!competeMode)) return;
     
     QPainter painter(this);
+
     
     int perblock = (std::min(ui->frame->width(), ui->frame->height()) - 20) / (map->getside());
     int start_x = ui->frame->x() + (ui->frame->width() - (ui->frame->x() + (map->getside()) * perblock)) / 2;
     int strat_y = ui->frame->y() + (ui->frame->height() - (ui->frame->y() + (map->getside()) * perblock)) / 2;
-    
-    // 先绘制地图
+    // 绘制基本地图元素（墙壁、空白路径等）
     for(int i = 0; i < map->getlevel() * 2 + 1; i++) {
         for(int j = 0; j < map->getlevel() * 2 + 1; j++) {
-            if(map->getmap()[i][j] == 7) {
-                painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::yellow));
-            } else if(map->getmap()[i][j] == 3 || map->getmap()[i][j] == 4) {
+            if(map->getmap()[i][j] == 3 || map->getmap()[i][j] == 4) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::white));
             } else if(map->getmap()[i][j] == 5) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::blue));
             } else if(map->getmap()[i][j] == 6) {
                 painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::green));
-            } else if(map->getmap()[i][j] == 8) {
-                painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::lightGray));
-            } else if(map->getmap()[i][j] == 9) {
-                painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::cyan));
             } else if(map->getmap()[i][j] == 0 || map->getmap()[i][j] == -1) {
-                painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::gray));
+                painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(QColor("#5bc0e8")));
+            }
+        }
+    }
+    
+    // 在竞赛模式下，绘制算法路径
+    if(competeMode) {
+        for(int i = 0; i < map->getlevel() * 2 + 1; i++) {
+            for(int j = 0; j < map->getlevel() * 2 + 1; j++) {
+                if(map->getmap()[i][j] == 8) {
+                    //BFS已搜索路径
+                    painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::lightGray));
+                } else if(map->getmap()[i][j] == 9) {
+                    //DFS已搜索路径
+                    painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(QColor("#f1e2f3")));
+                }else if(map->getmap()[i][j] == 10) {
+                    // BFS搜索前沿
+                    painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::cyan));
+                }
+            }
+        }
+    }
+    
+    // 绘制玩家路径（总是在最上层）
+    for(int i = 0; i < map->getlevel() * 2 + 1; i++) {
+        for(int j = 0; j < map->getlevel() * 2 + 1; j++) {
+            if(map->getmap()[i][j] == 7) {
+                painter.fillRect(start_x + i * perblock, strat_y + j * perblock, perblock, perblock, QBrush(Qt::yellow));
             }
         }
     }
     
     // 绘制三个实体
+    // 在三个实体的位置上绘制半透明的标记
     // 玩家 - 红色
     painter.fillRect(start_x + map->p_x * perblock, strat_y + map->p_y * perblock, perblock, perblock, QBrush(Qt::red));
-    
+
     // 在竞赛模式下显示算法位置
     if(competeMode) {
-        // DFS - 深紫色
+        // DFS - 深紫色，如果玩家和DFS位置重叠，绘制半透明标记
         if(map->dfsRunning) {
-            painter.fillRect(start_x + map->getDfsX() * perblock, strat_y + map->getDfsY() * perblock, perblock, perblock, QBrush(Qt::darkMagenta));
+            if(map->p_x == map->getDfsX() && map->p_y == map->getDfsY()) {
+                // 绘制红色与紫色的混合颜色
+                QColor mixedColor(Qt::darkMagenta);
+                mixedColor.setAlpha(128); // 半透明
+                painter.fillRect(start_x + map->getDfsX() * perblock, strat_y + map->getDfsY() * perblock, 
+                                perblock/2, perblock/2, QBrush(QColor("#f1e2f3"))); 
+            } else {
+                painter.fillRect(start_x + map->getDfsX() * perblock, strat_y + map->getDfsY() * perblock, 
+                                perblock, perblock, QBrush(Qt::darkMagenta));
+            }
         }
         
-        // BFS - 深蓝色
-        if(map->bfsRunning) {
-            painter.fillRect(start_x + map->getBfsX() * perblock, strat_y + map->getBfsY() * perblock, perblock, perblock, QBrush(Qt::darkBlue));
-        }
+        
     }
+}
+
+
+bool mazeWidget::isWalkable(int value) {
+    // 检查一个单元格是否可行走
+    return (value == 3 || value == 4 || value == 5 || 
+            value == 6 || value == 7 || value == 8 || value == 9 || value == 10);
 }
 
 void mazeWidget::keyPressEvent(QKeyEvent* event) {
@@ -93,27 +130,38 @@ void mazeWidget::keyPressEvent(QKeyEvent* event) {
     int y = map->p_y;
     //键盘移动逻辑：
     if(event->key() == Qt::Key_I || event->key() == Qt::Key_W) {
-        if((*map)[x][y - 1] == 3 || (*map)[x][y - 1] == 4 || (*map)[x][y - 1] == 5 || (*map)[x][y - 1] == 6 || (*map)[x][y - 1] == 7) {
+        if(isWalkable((*map)[x][y - 1])) {
             map->p_y--;
         }
     } else if(event->key() == Qt::Key_K || event->key() == Qt::Key_S) {
-        if((*map)[x][y + 1] == 3 || (*map)[x][y + 1] == 4 || (*map)[x][y + 1] == 5 || (*map)[x][y + 1] == 6 || (*map)[x][y + 1] == 7) {
+        if(isWalkable((*map)[x][y + 1])) {
             map->p_y++;
         }
     } else if(event->key() == Qt::Key_J || event->key() == Qt::Key_A) {
-        if((*map)[x - 1][y] == 3 || (*map)[x - 1][y] == 4 || (*map)[x - 1][y] == 5 || (*map)[x - 1][y] == 6 || (*map)[x - 1][y] == 7) {
+        if(isWalkable((*map)[x - 1][y])) {
             map->p_x--;
         }
     } else if(event->key() == Qt::Key_L || event->key() == Qt::Key_D) {
-        if((*map)[x + 1][y] == 3 || (*map)[x + 1][y] == 4 || (*map)[x + 1][y] == 5 || (*map)[x + 1][y] == 6 || (*map)[x + 1][y] == 7) {
+        if(isWalkable((*map)[x + 1][y])) {
             map->p_x++;
         }
     }
-    //经过路径
-    if((*map)[map->p_x][map->p_y] != 5 && (*map)[map->p_x][map->p_y] != 6)(*map)[map->p_x][map->p_y] = 7;
+    
+    // 标记玩家走过的路径
+    if((*map)[map->p_x][map->p_y] != 5 && (*map)[map->p_x][map->p_y] != 6)
+        (*map)[map->p_x][map->p_y] = 7;
+    
     repaint();
     //到达终点
-    if((*map)[map->p_x][map->p_y] == 6) {
+    // 竞赛模式下，检查是否到达终点
+    if(competeMode && (*map)[map->p_x][map->p_y] == 6) {
+        // 玩家到达终点
+        map->winner = maze::Player;
+        onCompetitionOver(static_cast<int>(maze::Player));
+        return; // 结束键盘处理
+    }
+    // 普通模式下，检查是否到达终点
+    else if((*map)[map->p_x][map->p_y] == 6) {
         map->makemap();
         repaint();
         grade += pow(map->getlevel(), 2);
@@ -133,12 +181,12 @@ void mazeWidget::time_update() {
         painting_switch = false;                //绘图响应
         timing_switch = false;                  //计时响应为关闭状态
         repaint();                              //清除画布
-        ui->start_btn->setEnabled(true);        //|
-        ui->time_value->setText(" ");           //|
-        ui->grade_value->setText(" ");          //|
+        ui->start_btn->setEnabled(true);        
+        ui->time_value->setText(" ");           
+        ui->grade_value->setText(" ");         
         ui->stop_ptn->setEnabled(false);        //|设置各按钮与标签状态
-        ui->end_btn->setEnabled(false);         //|
-        ui->setting_btn->setEnabled(true);      //|
+        ui->end_btn->setEnabled(false);         
+        ui->setting_btn->setEnabled(true);      
         //提示
         QMessageBox outgrade(QMessageBox::NoIcon,"", "得分:" + QString::number(grade), QMessageBox::Ok);
         outgrade.exec();
@@ -334,9 +382,6 @@ void mazeWidget::on_compete_button_clicked() {
 
         static_cast<void>(competitionStepUpdate_resetFirstCheck());
 
-        // 首先生成新地图，确保有足够大的搜索空间
-        map->makemap(); 
-        
         // 开始竞赛
         competeMode = true;
         ui->compete_button->setText("停止竞赛");
@@ -347,16 +392,20 @@ void mazeWidget::on_compete_button_clicked() {
         
         // 设置迷宫为竞赛模式
         map->setCompeteMode(true);
-        
-        // 启动DFS和BFS算法
-        map->dfsRunning = true;
-        map->bfsRunning = true;
-        
         // 更新界面
         repaint();
+
+        map->dfsRunning = true;
+
+        QTimer::singleShot(1000, this, [this]() {
+        // 启动BFS
+        map->bfsRunning = true;
+        }); 
+
+
         
         // 启动定时器进行更新，设置较慢的速度(500ms)使移动可见
-        competeTimer->start(1000);
+        competeTimer->start(500);
     } else {
         // 停止竞赛
         competeMode = false;
@@ -374,35 +423,6 @@ void mazeWidget::on_compete_button_clicked() {
 
 
 void mazeWidget::competitionStepUpdate() {
-    static bool firstCheck = true;
-    
-    if(firstCheck) {
-        firstCheck = false;
-        // 确保玩家起点不是终点
-        if(map->getmap()[map->p_x][map->p_y] == 6) {
-            // 如果起点就是终点，重新生成地图
-            map->makemap();
-            map->setCompeteMode(true);
-            repaint();
-            return;
-        }
-        
-        // 添加一个延迟，确保不会立即检查玩家是否胜利
-        QTimer::singleShot(500, this, [this]() {
-            repaint();
-        });
-        
-        return; // 第一次调用时直接返回，不检查胜利
-    }
-    
-    // 检查玩家是否到达终点，确保不是刚开始就胜利
-    if(map->getmap()[map->p_x][map->p_y] == 6) {
-        map->winner = maze::Player;
-        onCompetitionOver(static_cast<int>(maze::Player));
-        firstCheck = true; // 重置标志
-        return;
-    }
-
 
     // 每次调用时，让DFS和BFS各移动一步
     bool dfsUpdated = false;
@@ -416,17 +436,16 @@ void mazeWidget::competitionStepUpdate() {
         bfsUpdated = map->moveBfsOneStep();
     }
     
-    // 如果都没有更新，可能是卡住了
-    if(!dfsUpdated && !bfsUpdated && !map->dfsRunning && !map->bfsRunning) {
-        QMessageBox::information(this, "竞赛提示", "算法无法继续前进，竞赛结束！");
-        competeTimer->stop();
-        competeMode = false;
-        ui->compete_button->setText("开始竞赛");
+    // if(!map->dfsRunning && !map->bfsRunning) {
+    //     //QMessageBox::information(this, "竞赛提示", "算法无法到达终点，竞赛结束！");
+    //     competeTimer->stop();
+    //     competeMode = false;
+    //     ui->compete_button->setText("开始竞赛");
         
-        // 重置地图
-        map->makemap();
-        repaint();
-    }
+    //     // 重置地图
+    //     map->makemap();
+    //     repaint();
+    // }
     
     // 强制更新界面
     repaint();
@@ -444,13 +463,13 @@ void mazeWidget::onCompetitionOver(int winner) {
     
     if(winner == maze::Player) {
         winnerText = "恭喜您赢得了比赛！";
-        scoreMultiplier = 3; // 赢得比赛加3倍分数
+        scoreMultiplier = 1; 
     } else if(winner == maze::DFS) {
-        winnerText = "DFS算法赢得了比赛！";
-        scoreMultiplier = 1; // 输了比赛加1倍分数
+        winnerText = "DFS赢得了比赛！";
+        scoreMultiplier = 1; 
     } else if(winner == maze::BFS) {
-        winnerText = "BFS算法赢得了比赛！";
-        scoreMultiplier = 1; // 输了比赛加1倍分数
+        winnerText = "BFS赢得了比赛！";
+        scoreMultiplier = 1; 
     }
     
     // 计算并更新分数
